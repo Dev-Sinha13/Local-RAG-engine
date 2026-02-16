@@ -1,0 +1,19 @@
+[package]
+name = "rusty_rag"
+version = "0.1.0"
+edition = "2021"
+description = "A local-first, privacy-focused CLI tool to chat with your PDF documents using RAG"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+rig-core = "0.30"
+qdrant-client = "1.16"
+rig-qdrant = "0.1"
+pdf-extract = "0.10"
+clap = { version = "4", features = ["derive"] }
+dotenvy = "0.15"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
