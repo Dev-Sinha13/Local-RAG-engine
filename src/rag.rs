@@ -23,8 +23,8 @@ pub async fn ingest_document(path: &str) -> Result<()> {
         .parse()
         .unwrap_or(100);
 
-    println!("  Chunking text (size={}, overlap={})...", chunk_size, chunk_overlap);
-    let chunks = chunker::chunk_text(&text, chunk_size, chunk_overlap);
+    println!("  Chunking text (size={}, overlap={}) [parallel]...", chunk_size, chunk_overlap);
+    let chunks = chunker::chunk_text_parallel(&text, chunk_size, chunk_overlap);
     println!("  Created {} chunks.", chunks.len());
 
     println!("  Generating embeddings...");
