@@ -1,0 +1,24 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "rusty-rag"
+version = "0.1.0"
+description = "A local-first, privacy-focused CLI tool to chat with your PDF documents using RAG"
+requires-python = ">=3.9"
+dependencies = [
+    "ollama>=0.4",
+    "qdrant-client>=1.12",
+    "click>=8.0",
+    "python-dotenv>=1.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+rusty-rag = "rusty_rag.cli:main"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "rusty_rag.rusty_rag_core"

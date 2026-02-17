@@ -1,2 +1,13 @@
 /target
-.env
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+*.pyd
+*.dll
+.venv/
+venv/
