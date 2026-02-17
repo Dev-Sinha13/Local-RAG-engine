@@ -91,6 +91,75 @@ pub fn chunk_text_parallel(text: &str, chunk_size: usize, overlap: usize) -> Vec
         .collect()
 }
 
+/// Token-aware text chunking with overlap.
+///
+/// Splits text into chunks where each chunk contains at most `max_tokens` words.
+/// Maintains `overlap_tokens` words of overlap between adjacent chunks.
+/// Preserves original text formatting (whitespace, punctuation) within each chunk.
+///
+/// This produces chunks that align with how LLMs tokenize text, preventing
+/// mid-word splits and wasted context window space.
+pub fn chunk_by_tokens(text: &str, max_tokens: usize, overlap_tokens: usize) -> Vec<String> {
+    if text.is_empty() || max_tokens == 0 {
+        return vec![];
+    }
+
+    // Find word boundaries (byte start, byte end) using same logic as tokenizer
+    let mut word_spans: Vec<(usize, usize)> = Vec::new();
+    let mut in_word = false;
+    let mut word_start = 0;
+
+    for (i, c) in text.char_indices() {
+        let is_word_char = c.is_alphanumeric() || c == '\'';
+        if is_word_char {
+            if !in_word {
+                word_start = i;
+                in_word = true;
+            }
+        } else if in_word {
+            word_spans.push((word_start, i));
+            in_word = false;
+        }
+    }
+    if in_word {
+        word_spans.push((word_start, text.len()));
+    }
+
+    if word_spans.is_empty() {
+        return vec![];
+    }
+
+    if word_spans.len() <= max_tokens {
+        return vec![text.trim().to_string()];
+    }
+
+    let step = if overlap_tokens >= max_tokens {
+        1
+    } else {
+        max_tokens - overlap_tokens
+    };
+
+    let mut chunks = Vec::new();
+    let mut i = 0;
+
+    while i < word_spans.len() {
+        let end_idx = (i + max_tokens).min(word_spans.len());
+
+        // Extract original text span from first word start to last word end
+        let chunk_start = word_spans[i].0;
+        let chunk_end = word_spans[end_idx - 1].1;
+        chunks.push(text[chunk_start..chunk_end].to_string());
+
+        if end_idx == word_spans.len() {
+            break;
+        }
+
+        i += step;
+    }
+
+    chunks
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,5 +265,39 @@ mod tests {
         assert_eq!(sequential.len(), parallel.len());
         assert_eq!(sequential, parallel);
     }
-}
 
+    // --- Token-aware chunking tests ---
+
+    #[test]
+    fn test_token_chunk_basic() {
+        // 10 words, chunk by 4 tokens with 1 overlap → should produce 3 chunks
+        let text = "one two three four five six seven eight nine ten";
+        let chunks = chunk_by_tokens(text, 4, 1);
+        assert_eq!(chunks.len(), 3);
+        // First chunk should contain "one two three four"
+        assert!(chunks[0].contains("one"));
+        assert!(chunks[0].contains("four"));
+    }
+
+    #[test]
+    fn test_token_chunk_preserves_formatting() {
+        let text = "Hello, World!   This is   a   test.";
+        let chunks = chunk_by_tokens(text, 100, 0);
+        // All text fits in one chunk, should preserve original spacing
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].contains("World!   This"));
+    }
+
+    #[test]
+    fn test_token_chunk_empty() {
+        assert!(chunk_by_tokens("", 10, 2).is_empty());
+        assert!(chunk_by_tokens("hello", 0, 0).is_empty());
+    }
+
+    #[test]
+    fn test_token_chunk_small_text() {
+        let text = "just three words";
+        let chunks = chunk_by_tokens(text, 10, 2);
+        assert_eq!(chunks.len(), 1);
+    }
+}
