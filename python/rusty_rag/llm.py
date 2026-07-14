@@ -1,7 +1,8 @@
 """Ollama LLM completion with context-aware prompting."""
 
 import os
-import ollama
+
+from .shard import ask_with_shard, get_llm_backend
 
 
 def ask(question: str, context: str = "", model: str | None = None) -> str:
@@ -10,8 +11,6 @@ def ask(question: str, context: str = "", model: str | None = None) -> str:
     If context is provided, the model is instructed to only answer
     based on the given context. Otherwise, it acts as a general assistant.
     """
-    model = model or os.getenv("COMPLETION_MODEL", "llama3.2")
-
     if context:
         system = (
             "You are a helpful assistant. Answer the user's question using ONLY "
@@ -22,6 +21,13 @@ def ask(question: str, context: str = "", model: str | None = None) -> str:
         )
     else:
         system = "You are a helpful assistant."
+
+    if get_llm_backend() == "shard":
+        return ask_with_shard(question, system)
+
+    import ollama
+
+    model = model or os.getenv("COMPLETION_MODEL", "llama3.2")
 
     response = ollama.chat(
         model=model,

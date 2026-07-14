@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 mod bm25;
 mod chunker;
 mod pdf;
+mod shard;
 mod tokenizer;
 
 /// Extract all text from a PDF file using memory-mapped I/O.
@@ -66,6 +67,7 @@ fn token_count(text: &str) -> usize {
 ///   - chunk_by_tokens: Token-aware chunking
 ///   - tokenize / token_count: Word-level tokenization
 ///   - BM25Index: Keyword search index
+///   - ShardStreamQuantizer: SHARD-style packed streaming KV quantizer
 #[pymodule]
 fn rusty_rag_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_pdf_text, m)?)?;
@@ -75,5 +77,6 @@ fn rusty_rag_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(tokenize, m)?)?;
     m.add_function(wrap_pyfunction!(token_count, m)?)?;
     m.add_class::<bm25::BM25Index>()?;
+    m.add_class::<shard::ShardStreamQuantizer>()?;
     Ok(())
 }

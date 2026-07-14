@@ -213,6 +213,21 @@ TURBOVEC_BIT_WIDTH=4
 
 Re-ingesting a document replaces its prior vectors. If you switch an existing Qdrant-backed corpus to turbovec, re-ingest its documents because RustyRAG deliberately does not retain embedding vectors in the chunk cache.
 
+### Experimental SHARD LLM Backend
+
+RustyRAG includes a Rust implementation of SHARD's portable streaming quantizer: signed Hadamard rotation, Lloyd-Max quantization, and packed token codes. The full SHARD inference path remains model-specific because its PCA/VQ cache and fused attention target Llama-3.1 through Hugging Face Transformers.
+
+The default is still Ollama. To opt in, install the upstream SHARD Python package and its local GPU dependencies yourself, download a compatible model separately, then set a local path. RustyRAG always requests the model with `local_files_only=True`; invoking this feature never downloads model weights.
+
+```env
+LLM_BACKEND=shard
+SHARD_MODEL_PATH=/path/to/local/Llama-3.1-8B-Instruct
+SHARD_STREAM_BITS=8
+SHARD_MAX_NEW_TOKENS=256
+```
+
+Use this backend for long-context memory capacity, not default latency: SHARD's reported decode throughput is below FP16. At the default 3 retrieved chunks of 256 tokens, Ollama is normally the better choice.
+
 ### Vector Backend Benchmark
 
 Use the reproducible local benchmark to compare turbovec with exact float32 search and embedded Qdrant on a 384-dimensional workload:
