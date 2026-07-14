@@ -1,0 +1,48 @@
+{
+  "workload": {
+    "vectors": 20000,
+    "queries": 200,
+    "dimension": 384,
+    "k": 10,
+    "seed": 7,
+    "raw_float32_bytes": 30720000
+  },
+  "exact_float32": {
+    "mean_ms": 2.1299,
+    "p50_ms": 2.0617,
+    "p95_ms": 3.8304,
+    "qps": 469.5
+  },
+  "turbovec": [
+    {
+      "mean_ms": 2.0692,
+      "p50_ms": 1.8949,
+      "p95_ms": 2.9384,
+      "qps": 483.29,
+      "bit_width": 2,
+      "build_ms": 823.24,
+      "index_bytes": 2163090,
+      "recall_at_k": 0.564,
+      "compression_ratio_vs_raw": 14.2
+    },
+    {
+      "mean_ms": 4.3939,
+      "p50_ms": 4.2005,
+      "p95_ms": 6.01,
+      "qps": 227.59,
+      "bit_width": 4,
+      "build_ms": 1381.25,
+      "index_bytes": 4083090,
+      "recall_at_k": 0.855,
+      "compression_ratio_vs_raw": 7.52
+    }
+  ],
+  "qdrant_local": {
+    "mean_ms": 104.3907,
+    "p50_ms": 105.3321,
+    "p95_ms": 128.6908,
+    "qps": 9.58,
+    "build_ms": 16907.79,
+    "recall_at_k": 1.0
+  }
+}
