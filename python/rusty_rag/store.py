@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+from hashlib import blake2b
 from pathlib import Path
 from typing import TypedDict
 
 from .rusty_rag_core import BM25Index
 
-STORE_VERSION = 2
+STORE_VERSION = 3
 UNKNOWN_SOURCE = "<unknown>"
 
 
@@ -19,6 +20,7 @@ class DocumentChunks(TypedDict):
     source: str
     chunk_count: int
     chunks: list[str]
+    chunk_ids: list[int]
 
 
 class ChunkStore(TypedDict):
@@ -53,6 +55,23 @@ def empty_chunk_store() -> ChunkStore:
     return {"version": STORE_VERSION, "documents": []}
 
 
+def make_chunk_ids(source: str, chunks: list[str]) -> list[int]:
+    """Make stable uint64 ids for chunks belonging to one source document."""
+    ids: list[int] = []
+    used_ids: set[int] = set()
+    for ordinal, chunk in enumerate(chunks):
+        salt = 0
+        while True:
+            value = f"{source}\0{ordinal}\0{chunk}\0{salt}".encode("utf-8")
+            chunk_id = int.from_bytes(blake2b(value, digest_size=8).digest(), "big")
+            if chunk_id not in used_ids:
+                break
+            salt += 1
+        used_ids.add(chunk_id)
+        ids.append(chunk_id)
+    return ids
+
+
 def load_chunk_store() -> ChunkStore:
     """Load the on-disk chunk store, migrating older formats when needed."""
     path = get_chunk_store_path()
@@ -63,6 +82,7 @@ def load_chunk_store() -> ChunkStore:
         payload = json.load(handle)
 
     if isinstance(payload, list):
+        chunk_ids = make_chunk_ids(UNKNOWN_SOURCE, payload)
         return {
             "version": STORE_VERSION,
             "documents": [
@@ -70,6 +90,7 @@ def load_chunk_store() -> ChunkStore:
                     "source": UNKNOWN_SOURCE,
                     "chunk_count": len(payload),
                     "chunks": payload,
+                    "chunk_ids": chunk_ids,
                 }
             ],
         }
@@ -77,12 +98,17 @@ def load_chunk_store() -> ChunkStore:
     documents = payload.get("documents", [])
     normalized_documents: list[DocumentChunks] = []
     for document in documents:
+        source = document.get("source", UNKNOWN_SOURCE)
         chunks = list(document.get("chunks", []))
+        chunk_ids = list(document.get("chunk_ids", []))
+        if len(chunk_ids) != len(chunks):
+            chunk_ids = make_chunk_ids(source, chunks)
         normalized_documents.append(
             {
-                "source": document.get("source", UNKNOWN_SOURCE),
+                "source": source,
                 "chunk_count": document.get("chunk_count", len(chunks)),
                 "chunks": chunks,
+                "chunk_ids": chunk_ids,
             }
         )
 
@@ -122,6 +148,7 @@ def upsert_document_chunks(source: str, chunks: list[str]) -> ChunkStore:
             "source": normalized_source,
             "chunk_count": len(chunks),
             "chunks": list(chunks),
+            "chunk_ids": make_chunk_ids(normalized_source, chunks),
         }
     )
     updated_store: ChunkStore = {
@@ -130,6 +157,30 @@ def upsert_document_chunks(source: str, chunks: list[str]) -> ChunkStore:
     }
     save_chunk_store(updated_store)
     return updated_store
+
+
+def get_document_chunks(source: str, store: ChunkStore | None = None) -> DocumentChunks | None:
+    """Return the stored document record for a source, if present."""
+    normalized_source = normalize_source_path(source)
+    active_store = store or load_chunk_store()
+    return next(
+        (
+            document
+            for document in active_store["documents"]
+            if normalize_source_path(document["source"]) == normalized_source
+        ),
+        None,
+    )
+
+
+def get_chunks_by_id(store: ChunkStore | None = None) -> dict[int, str]:
+    """Return a mapping from stable chunk id to text."""
+    active_store = store or load_chunk_store()
+    return {
+        chunk_id: chunk
+        for document in active_store["documents"]
+        for chunk_id, chunk in zip(document["chunk_ids"], document["chunks"])
+    }
 
 
 def get_all_chunks(store: ChunkStore | None = None) -> list[str]:

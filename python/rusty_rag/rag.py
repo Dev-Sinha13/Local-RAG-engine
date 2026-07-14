@@ -10,7 +10,15 @@ from . import chunk_by_tokens, extract_pdf_text
 from .db import create_client, init_collection, search, upsert_chunks
 from .embeddings import embed_query, embed_texts
 from .llm import ask
-from .store import get_all_chunks, get_bm25_index, load_chunk_store, upsert_document_chunks
+from .store import (
+    get_all_chunks,
+    get_bm25_index,
+    get_chunks_by_id,
+    get_document_chunks,
+    load_chunk_store,
+    upsert_document_chunks,
+)
+from .turbovec_store import get_vector_backend, search as search_turbovec, upsert_vectors
 
 console = Console()
 
@@ -45,6 +53,7 @@ def ingest(file_path: str, retrieval_mode: str | None = None) -> None:
     console.print(f"  Created [green]{len(chunks)}[/green] chunks.")
 
     console.print("  Persisting local chunk store [dim]\\[BM25][/dim]...")
+    previous_document = get_document_chunks(file_path)
     upsert_document_chunks(file_path, chunks)
 
     if mode in {"hybrid", "vector"}:
@@ -52,12 +61,19 @@ def ingest(file_path: str, retrieval_mode: str | None = None) -> None:
         vectors = embed_texts(chunks)
         console.print(f"  Generated [green]{len(vectors)}[/green] embeddings.")
 
-        console.print("  Connecting to Qdrant...")
-        client = create_client()
-        init_collection(client)
+        if get_vector_backend() == "turbovec":
+            current_document = get_document_chunks(file_path)
+            assert current_document is not None
+            replaced_ids = previous_document["chunk_ids"] if previous_document else []
+            console.print("  Updating local vector index [dim]\\[turbovec][/dim]...")
+            upsert_vectors(vectors, current_document["chunk_ids"], replaced_ids)
+        else:
+            console.print("  Connecting to Qdrant...")
+            client = create_client()
+            init_collection(client)
 
-        console.print("  Upserting chunks to Qdrant...")
-        upsert_chunks(client, chunks, vectors)
+            console.print("  Upserting chunks to Qdrant...")
+            upsert_chunks(client, chunks, vectors)
     else:
         console.print("  Skipping embeddings and Qdrant [dim]\\[BM25-only mode][/dim].")
 
@@ -120,8 +136,19 @@ def query(question: str, retrieval_mode: str | None = None) -> str:
 def _run_vector_search(question: str, top_k: int = 10) -> list[tuple[str, float]]:
     """Run vector similarity search against Qdrant."""
     min_score = float(os.getenv("VECTOR_MIN_SCORE", "0.2"))
-    console.print("  Running vector search [dim]\\[Qdrant][/dim]...")
     query_vector = embed_query(question)
+    if get_vector_backend() == "turbovec":
+        console.print("  Running vector search [dim]\\[turbovec][/dim]...")
+        chunks_by_id = get_chunks_by_id()
+        results = [
+            (chunks_by_id[chunk_id], score)
+            for chunk_id, score in search_turbovec(query_vector, top_k=top_k)
+            if chunk_id in chunks_by_id
+        ]
+        console.print(f"    -> {len(results)} vector matches")
+        return results
+
+    console.print("  Running vector search [dim]\\[Qdrant][/dim]...")
     client = create_client()
     results = search(client, query_vector, top_k=top_k, min_score=min_score)
     console.print(f"    -> {len(results)} vector matches")

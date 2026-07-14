@@ -6,7 +6,7 @@ RustyRAG now supports three first-class retrieval modes:
 
 - `bm25`: fully vectorless local retrieval backed by a Rust BM25 index
 - `hybrid`: BM25 plus vector retrieval fused with Reciprocal Rank Fusion
-- `vector`: vector search only through Qdrant
+- `vector`: vector search through Qdrant or a persistent local turbovec index
 
 The result is a project that can run as a simple, dependency-light keyword RAG system or as a richer semantic RAG pipeline, without forking the codebase.
 
@@ -24,11 +24,11 @@ For local workflows, that means you can choose between:
 
 ## Retrieval Modes
 
-| Mode | Embeddings | Qdrant | Local chunk store | Best for |
+| Mode | Embeddings | Vector backend | Local chunk store | Best for |
 | --- | --- | --- | --- | --- |
 | `bm25` | No | No | Yes | Fast, simple, exact-term retrieval |
-| `hybrid` | Yes | Yes | Yes | Best overall retrieval quality |
-| `vector` | Yes | Yes | Yes | Semantic retrieval experiments |
+| `hybrid` | Yes | Qdrant or turbovec | Yes | Best overall retrieval quality |
+| `vector` | Yes | Qdrant or turbovec | Yes | Semantic retrieval experiments |
 
 Even in `vector` mode, RustyRAG persists a local chunk store so you can switch retrieval strategies later without re-chunking the source documents.
 
@@ -39,7 +39,7 @@ Even in `vector` mode, RustyRAG persists a local chunk store so you can switch r
 1. Rust extracts PDF text.
 2. Rust performs token-aware chunking.
 3. RustyRAG writes chunk data to a local corpus store for BM25 retrieval.
-4. In `hybrid` and `vector` modes, RustyRAG also generates embeddings and stores them in Qdrant.
+4. In `hybrid` and `vector` modes, RustyRAG also generates embeddings and stores them in the configured vector backend.
 
 ### Query
 
@@ -173,6 +173,10 @@ QDRANT_URL=http://localhost:6333
 COLLECTION_NAME=documents
 VECTOR_MIN_SCORE=0.2
 
+# Vector backend: qdrant (default) or turbovec (persistent local index)
+VECTOR_BACKEND=qdrant
+# TURBOVEC_BIT_WIDTH=4
+
 # Ollama
 EMBEDDING_MODEL=all-minilm
 COMPLETION_MODEL=llama3.2
@@ -197,6 +201,17 @@ $RUSTY_RAG_CACHE_DIR/chunks.json
 ```
 
 The store is structured per source document and replaces prior entries when the same document path is re-ingested.
+
+### Local turbovec Vector Index
+
+Set `VECTOR_BACKEND=turbovec` to use a persistent compressed local index instead of Qdrant. The index is written as `vectors.tvim` beside `chunks.json`, so vector and hybrid retrieval can run without Docker or a Qdrant service.
+
+```env
+VECTOR_BACKEND=turbovec
+TURBOVEC_BIT_WIDTH=4
+```
+
+Re-ingesting a document replaces its prior vectors. If you switch an existing Qdrant-backed corpus to turbovec, re-ingest its documents because RustyRAG deliberately does not retain embedding vectors in the chunk cache.
 
 ## Testing
 

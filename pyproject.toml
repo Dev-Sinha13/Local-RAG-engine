@@ -13,6 +13,7 @@ dependencies = [
     "click>=8.0",
     "python-dotenv>=1.0",
     "rich>=13.0",
+    "turbovec>=0.8,<0.9",
 ]
 
 [project.scripts]

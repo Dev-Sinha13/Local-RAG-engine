@@ -34,6 +34,7 @@ class RagPipelineTests(unittest.TestCase):
         os.environ.pop("RETRIEVAL_MODE", None)
         os.environ.pop("RETRIEVAL_TOP_K", None)
         os.environ.pop("VECTOR_MIN_SCORE", None)
+        os.environ.pop("VECTOR_BACKEND", None)
         store.clear_bm25_cache()
 
     def test_get_retrieval_mode_uses_explicit_value_or_env(self) -> None:
@@ -94,6 +95,22 @@ class RagPipelineTests(unittest.TestCase):
             rag.ingest("vector.pdf", retrieval_mode="vector")
 
         self.assertEqual(store.get_all_chunks(), ["alpha beta"])
+
+    def test_ingest_turbovec_backend_skips_qdrant_and_replaces_source_ids(self) -> None:
+        os.environ["VECTOR_BACKEND"] = "turbovec"
+        with (
+            patch.object(rag, "extract_pdf_text", return_value="alpha beta"),
+            patch.object(rag, "chunk_by_tokens", return_value=["alpha beta"]),
+            patch.object(rag, "embed_texts", return_value=[[0.1] * 8]),
+            patch.object(rag, "upsert_vectors") as turbovec_upsert,
+            patch.object(rag, "create_client") as client_mock,
+        ):
+            rag.ingest("local.pdf", retrieval_mode="vector")
+
+        turbovec_upsert.assert_called_once()
+        client_mock.assert_not_called()
+        saved_document = store.get_document_chunks("local.pdf")
+        self.assertEqual(turbovec_upsert.call_args.args[1], saved_document["chunk_ids"])
 
     def test_query_bm25_mode_uses_keyword_search_only(self) -> None:
         store.upsert_document_chunks(
