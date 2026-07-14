@@ -71,11 +71,20 @@ def search(
     """
     collection = collection or get_collection_name()
 
-    results = client.search(
-        collection_name=collection,
-        query_vector=query_vector,
-        limit=top_k,
-        score_threshold=min_score,
-    )
+    if hasattr(client, "query_points"):
+        response = client.query_points(
+            collection_name=collection,
+            query=query_vector,
+            limit=top_k,
+            score_threshold=min_score,
+        )
+        results = response.points
+    else:
+        results = client.search(
+            collection_name=collection,
+            query_vector=query_vector,
+            limit=top_k,
+            score_threshold=min_score,
+        )
 
     return [(point.payload["text"], point.score) for point in results]

@@ -213,6 +213,16 @@ TURBOVEC_BIT_WIDTH=4
 
 Re-ingesting a document replaces its prior vectors. If you switch an existing Qdrant-backed corpus to turbovec, re-ingest its documents because RustyRAG deliberately does not retain embedding vectors in the chunk cache.
 
+### Vector Backend Benchmark
+
+Use the reproducible local benchmark to compare turbovec with exact float32 search and embedded Qdrant on a 384-dimensional workload:
+
+```bash
+python benchmarks/turbovec_benchmark.py --qdrant
+```
+
+It reports index-build time, single-query mean/p50/p95 latency, QPS, Recall@10 against exact float32 ranking, and turbovec index compression. Pass `--output results.json` to save a run.
+
 ## Testing
 
 ### Unit tests
