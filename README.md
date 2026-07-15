@@ -238,6 +238,8 @@ python benchmarks/turbovec_benchmark.py --qdrant
 
 It reports index-build time, single-query mean/p50/p95 latency, QPS, Recall@10 against exact float32 ranking, and turbovec index compression. Pass `--output results.json` to save a run.
 
+The checked-in [combined performance report](benchmarks/COMBINED_PERFORMANCE.md) distinguishes measured turbovec and Rust SHARD-style codec metrics from SHARD's still-unmeasured end-to-end Llama metrics.
+
 ## Testing
 
 ### Unit tests

@@ -335,4 +335,43 @@ mod tests {
             .sqrt();
         assert!(dot / (left_norm * right_norm) > 0.99);
     }
+
+    #[test]
+    #[ignore = "Run explicitly to collect no-model SHARD streaming quantizer metrics."]
+    fn benchmark_streaming_quantizer() {
+        use std::time::Instant;
+
+        const TOKENS: usize = 50_000;
+        const DIM: usize = 128;
+        let vectors = (0..TOKENS)
+            .map(|token| {
+                (0..DIM)
+                    .map(|dimension| {
+                        ((token as f32 * 0.013) + (dimension as f32 * 0.071)).sin() + 0.1
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        for bits in [4, 8] {
+            let quantizer = ShardStreamQuantizer::new(DIM, bits, 42).unwrap();
+            let started = Instant::now();
+            let (packed, norms) = quantizer.encode(vectors.clone()).unwrap();
+            let encode_seconds = started.elapsed().as_secs_f64();
+            let started = Instant::now();
+            let _decoded = quantizer.decode(packed, norms).unwrap();
+            let decode_seconds = started.elapsed().as_secs_f64();
+            let packed_bytes = quantizer.compressed_bytes_per_vector() + std::mem::size_of::<f32>();
+            let fp16_bytes = DIM * std::mem::size_of::<u16>();
+            println!(
+                "SHARD_STREAM_METRIC bits={bits} tokens={TOKENS} dim={DIM} \
+                 encode_tokens_per_second={:.2} decode_tokens_per_second={:.2} \
+                 packed_bytes_per_token={packed_bytes} fp16_bytes_per_token={fp16_bytes} \
+                 compression_ratio={:.2}",
+                TOKENS as f64 / encode_seconds,
+                TOKENS as f64 / decode_seconds,
+                fp16_bytes as f64 / packed_bytes as f64,
+            );
+        }
+    }
 }
